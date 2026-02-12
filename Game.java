@@ -299,7 +299,7 @@ public class Game extends PApplet {
                 JOptionPane.showMessageDialog(null, "Saved successfully");
             } else if (key == 'l' || key == 'L') {
                 String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
-                loadMapCSV("map.csv");
+                loadMapCSV(fileName);
                 JOptionPane.showMessageDialog(null, "Loaded successfully");
             }
         }
