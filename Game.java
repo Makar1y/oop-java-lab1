@@ -1,6 +1,8 @@
 import processing.core.PApplet;
 import processing.core.PImage;
 
+import javax.swing.*;
+
 public class Game extends PApplet {
     
     enum Screen {
@@ -292,11 +294,13 @@ public class Game extends PApplet {
             }
         } else if (screen == Screen.MAP_EDITOR) {
             if (key == 's' || key == 'S') {
-                saveMapCSV("map.csv");
-                // TODO message
+                String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
+                saveMapCSV(fileName);
+                JOptionPane.showMessageDialog(null, "Saved successfully");
             } else if (key == 'l' || key == 'L') {
+                String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
                 loadMapCSV("map.csv");
-                // TODO message
+                JOptionPane.showMessageDialog(null, "Loaded successfully");
             }
         }
     }
