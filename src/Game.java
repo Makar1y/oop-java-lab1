@@ -28,7 +28,15 @@ public class Game extends PApplet {
     public int mapCols = 50;
     public int mapRows = 50;
     int emptyTile = -1;
-    int[][] map = new int[mapRows][mapCols];
+
+    // 3 layers:
+    // layer 1 = gameplay / logic
+    // layer 2 = decorative
+    // layer 3 = decorative top
+    final int LAYERS = 3;
+    int[][][] maps = new int[LAYERS][mapRows][mapCols];
+    int activeLayer = 0; // 0..2
+
     int selectedTile = 0;
     int sidebarW = 300;
     int mapViewX = 0;
@@ -97,13 +105,23 @@ public class Game extends PApplet {
     float camRenderX, camRenderY;
     final float camFollow = 0.35f;
 
-    void initEditor() {
-        map = new int[mapRows][mapCols];
+    int[][] layer(int layerIndex) {
+        return maps[constrain(layerIndex, 0, LAYERS - 1)];
+    }
+
+    void clearLayer(int layerIndex) {
+        int[][] m = layer(layerIndex);
         for (int r = 0; r < mapRows; r++) {
             for (int c = 0; c < mapCols; c++) {
-                map[r][c] = emptyTile;
+                m[r][c] = emptyTile;
             }
         }
+    }
+
+    void initEditor() {
+        maps = new int[LAYERS][mapRows][mapCols];
+        for (int i = 0; i < LAYERS; i++) clearLayer(i);
+        activeLayer = 0;
     }
 
     void fillTiles() {
@@ -217,9 +235,11 @@ public class Game extends PApplet {
     }
 
     void voidStartPlay() {
+        int[][] logic = layer(0);
+
         for (int r = 0; r < mapRows; r++) {
             for (int c = 0; c < mapCols; c++) {
-                int id = map[r][c];
+                int id = logic[r][c];
                 if (id == spawnTile) {
                     playerX = c;
                     PlayerY = r;
@@ -349,7 +369,8 @@ public class Game extends PApplet {
     }
 
     void checkWinLose() {
-        int id = map[PlayerY][playerX];
+        int[][] logic = layer(0);
+        int id = logic[PlayerY][playerX];
         if (id == emptyTile) {
             playState = PlayState.LOST;
         } else if (id == ExitTile) {
@@ -376,6 +397,10 @@ public class Game extends PApplet {
         float fracX = camX - centerTileX;
         float fracY = camY - centerTileY;
 
+        int[][] l1 = layer(0);
+        int[][] l2 = layer(1);
+        int[][] l3 = layer(2);
+
         for (int dy = -radius - 1; dy <= radius + 1; dy++) {
             for (int dx = -radius - 1; dx <= radius + 1; dx++) {
 
@@ -385,13 +410,12 @@ public class Game extends PApplet {
                 float sx = originX + (dx + radius - fracX) * gameTileSize;
                 float sy = originY + (dy + radius - fracY) * gameTileSize;
 
-                int id = emptyTile;
                 if (tx >= 0 && tx < mapCols && ty >= 0 && ty < mapRows) {
-                    id = map[ty][tx];
-                }
+                    int id1 = l1[ty][tx];
+                    if (id1 >= 0) image(tilesArray[id1], (int) sx, (int) sy, gameTileSize, gameTileSize);
 
-                if (id >= 0) {
-                    image(tilesArray[id], (int)sx, (int)sy, gameTileSize, gameTileSize);
+                    int id2 = l2[ty][tx];
+                    if (id2 >= 0) image(tilesArray[id2], (int) sx, (int) sy, gameTileSize, gameTileSize);
                 }
 
                 int dist = abs(dx) + abs(dy);
@@ -400,11 +424,29 @@ public class Game extends PApplet {
                 float alpha = (1f - vis) * 255f;
                 noStroke();
                 fill(0, alpha);
-                rect((int)sx, (int)sy, gameTileSize, gameTileSize);
+                rect((int) sx, (int) sy, gameTileSize, gameTileSize);
             }
         }
 
         drawPlayer(width / 2 - gameTileSize / 2, height / 2 - gameTileSize / 2, gameTileSize);
+
+        for (int dy = -radius - 1; dy <= radius + 1; dy++) {
+            for (int dx = -radius - 1; dx <= radius + 1; dx++) {
+
+                int tx = centerTileX + dx;
+                int ty = centerTileY + dy;
+
+                if (tx < 0 || tx >= mapCols || ty < 0 || ty >= mapRows) continue;
+
+                float sx = originX + (dx + radius - fracX) * gameTileSize;
+                float sy = originY + (dy + radius - fracY) * gameTileSize;
+
+                int id3 = l3[ty][tx];
+                if (id3 >= 0) {
+                    image(tilesArray[id3], (int) sx, (int) sy, gameTileSize, gameTileSize);
+                }
+            }
+        }
     }
 
     void drawPlayer(int x, int y, int sizePx) {
@@ -454,25 +496,53 @@ public class Game extends PApplet {
 
 
         // Background
-        background(200);
+        background(250);
         noStroke();
-        fill(235);
+        fill(70, 130, 180);
         rect(mapViewX, mapViewY, mapViewW, mapViewH);
 
-        // Draw tiles
-        for (int r = 0; r < mapRows; r++) {
-            for (int c = 0; c < mapCols; c++) {
-                int id = map[r][c];
-                if (id != emptyTile) {
-                    int sx = mapDrawX + c * viewTileSize;
-                    int sy = mapDrawY + r * viewTileSize;
-                    image(tilesArray[id], sx, sy, viewTileSize, viewTileSize);
+        for (int layerIndex = 0; layerIndex < LAYERS; layerIndex++) {
+            int[][] m = layer(layerIndex);
+            for (int r = 0; r < mapRows; r++) {
+                for (int c = 0; c < mapCols; c++) {
+                    int id = m[r][c];
+                    if (id != emptyTile) {
+                        int sx = mapDrawX + c * viewTileSize;
+                        int sy = mapDrawY + r * viewTileSize;
+                        image(tilesArray[id], sx, sy, viewTileSize, viewTileSize);
+                    }
                 }
             }
         }
 
+        // Sidebar / palette
+        paletteX = width - sidebarW;
+        paletteY = 0;
+
+        noStroke();
+        fill(0, 125, 200);
+        rect(paletteX, paletteY, sidebarW, height);
+
+        fill(0);
+        textSize(18);
+        textAlign(LEFT, TOP);
+        text("Palette", paletteX + 12, 12);
+        textSize(12);
+        text(
+                "LMB paint / RMB erase\n" +
+                "1/2/3 select layer (current: " + (activeLayer + 1) + ")\n" +
+                "S save / L load\n" +
+                "Esc back",
+                paletteX + 12, 40
+        );
+
+        paletteInnerX = paletteX + 12;
+        paletteInnerY = 160;
+        paletteInnerW = sidebarW - 12*2;
+
+        drawPalette(paletteInnerX, paletteInnerY, paletteInnerW);
         // Grid
-        stroke(0, 40);
+        stroke(255, 75);
         for (int c = 0; c <= mapCols; c++) {
             int x = mapDrawX + c * viewTileSize;
             line(x, mapDrawY, x, mapDrawY + mapPixelH);
@@ -481,27 +551,6 @@ public class Game extends PApplet {
             int y = mapDrawY + r * viewTileSize;
             line(mapDrawX, y, mapDrawX + mapPixelW, y);
         }
-
-        // Sidebar / palette
-        paletteX = width - sidebarW;
-        paletteY = 0;
-
-        noStroke();
-        fill(220);
-        rect(paletteX, paletteY, sidebarW, height);
-
-        fill(20);
-        textSize(18);
-        textAlign(LEFT, TOP);
-        text("Palette", paletteX + 12, 12);
-        textSize(12);
-        text("LMB paint / RMB erase\nS save / L load\nEsc back", paletteX + 12, 40);
-
-        paletteInnerX = paletteX + 12;
-        paletteInnerY = 140;
-        paletteInnerW = sidebarW - 12*2;
-
-        drawPalette(paletteInnerX, paletteInnerY, paletteInnerW);
     }
 
     void drawPalette(int x, int y, int w) {
@@ -541,7 +590,7 @@ public class Game extends PApplet {
 
         if (row < 0 || row >= mapRows || col < 0 || col >= mapCols) return;
 
-        map[row][col] = erase ? emptyTile : selectedTile;
+        layer(activeLayer)[row][col] = erase ? emptyTile : selectedTile;
     }
 
     void pickTileAtMouse() {
@@ -618,8 +667,11 @@ public class Game extends PApplet {
             if (key == 'r' || key == 'R') {
                 resetPlay();
             }
-        }else if (screen == Screen.MAP_EDITOR) {
-            if (key == 's' || key == 'S') {
+        } else if (screen == Screen.MAP_EDITOR) {
+            if (key == '1') activeLayer = 0;
+            else if (key == '2') activeLayer = 1;
+            else if (key == '3') activeLayer = 2;
+            else if (key == 's' || key == 'S') {
                 String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
                 saveMapCSV(fileName);
                 JOptionPane.showMessageDialog(null, "Saved successfully");
@@ -631,15 +683,23 @@ public class Game extends PApplet {
     }
 
     void saveMapCSV(String filename) {
-        String[] lines = new String[mapRows];
-        for (int r = 0; r < mapRows; r++) {
-            StringBuilder sb = new StringBuilder();
-            for (int c = 0; c < mapCols; c++) {
-                if (c > 0) sb.append(',');
-                sb.append(map[r][c]);
+        int totalLines = (mapRows + 1) * LAYERS; // header per layer + rows
+        String[] lines = new String[totalLines];
+
+        int k = 0;
+        for (int li = 0; li < LAYERS; li++) {
+            lines[k++] = "#layer=" + (li + 1);
+            int[][] m = layer(li);
+            for (int r = 0; r < mapRows; r++) {
+                StringBuilder sb = new StringBuilder();
+                for (int c = 0; c < mapCols; c++) {
+                    if (c > 0) sb.append(',');
+                    sb.append(m[r][c]);
+                }
+                lines[k++] = sb.toString();
             }
-            lines[r] = sb.toString();
         }
+
         saveStrings(filename, lines);
     }
 
@@ -650,14 +710,58 @@ public class Game extends PApplet {
             return;
         }
 
-        int rows = Math.min(lines.length, mapRows);
-        for (int r = 0; r < rows; r++) {
-            String[] parts = split(lines[r], ',');
-            int cols = Math.min(parts.length, mapCols);
-            for (int c = 0; c < cols; c++) {
-                map[r][c] = parseInt(parts[c]);
+        for (int li = 0; li < LAYERS; li++) clearLayer(li);
+
+        // Detect new format
+        boolean hasHeaders = false;
+        for (String line : lines) {
+            if (line != null && line.startsWith("#layer=")) {
+                hasHeaders = true;
+                break;
             }
         }
+
+        if (!hasHeaders) {
+            int[][] m = layer(0);
+            int rows = Math.min(lines.length, mapRows);
+            for (int r = 0; r < rows; r++) {
+                String[] parts = split(lines[r], ',');
+                int cols = Math.min(parts.length, mapCols);
+                for (int c = 0; c < cols; c++) {
+                    m[r][c] = parseInt(parts[c]);
+                }
+            }
+            JOptionPane.showMessageDialog(null, "Loaded successfully (layer 1 only)");
+            return;
+        }
+
+        int currentLayer = -1;
+        int rowInLayer = 0;
+
+        for (String raw : lines) {
+            if (raw == null) continue;
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+
+            if (line.startsWith("#layer=")) {
+                int num = parseInt(line.substring("#layer=".length()));
+                currentLayer = num - 1;
+                rowInLayer = 0;
+                continue;
+            }
+
+            if (currentLayer < 0 || currentLayer >= LAYERS) continue;
+            if (rowInLayer >= mapRows) continue;
+
+            String[] parts = split(line, ',');
+            int cols = Math.min(parts.length, mapCols);
+            int[][] m = layer(currentLayer);
+            for (int c = 0; c < cols; c++) {
+                m[rowInLayer][c] = parseInt(parts[c]);
+            }
+            rowInLayer++;
+        }
+
         JOptionPane.showMessageDialog(null, "Loaded successfully");
     }
 
