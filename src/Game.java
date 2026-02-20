@@ -4,7 +4,7 @@ import processing.core.PImage;
 import javax.swing.*;
 
 public class Game extends PApplet {
-    
+
     enum Screen {
         MAIN_MENU,
         PLAY,
@@ -12,7 +12,7 @@ public class Game extends PApplet {
     }
 
     Screen screen = Screen.MAIN_MENU;
-    
+
     float playX, playY, playW, playH;
     float editorX, editorY, editorW, editorH;
 
@@ -22,6 +22,7 @@ public class Game extends PApplet {
     PImage[] tilesArray;
     PImage tilesImage;
     PImage playerImage;
+    PImage playerIdle;
 
     // Map editor
     public int mapCols = 50;
@@ -71,7 +72,27 @@ public class Game extends PApplet {
     int lastMoveFrameCount = 0;
     final int moveEveryNFrames = 7;
 
+    PImage[][] playerFrames;
+    final int PLAYER_FRAMES_X = 8;
+    final int PLAYER_FRAMES_Y = 4;
 
+    PImage[][] idleFrames;
+    final int IDLE_FRAMES_X = 6;
+    final int IDLE_FRAMES_Y = 4;
+
+    int walkAnimFrame = 0;
+    int idleAnimFrame = 0;
+
+    float playerRenderX, playerRenderY;
+
+    boolean isMoving = false;
+    int moveFromX, moveFromY, moveToX, moveToY;
+    int moveStartMs = 0;
+    final int moveDurationMs = 120;
+
+    int lastAnimMs = 0;
+    final int walkFrameMs = 90; // ms
+    final int idleFrameMs = 140; // ms
 
     void initEditor() {
         map = new int[mapRows][mapCols];
@@ -90,19 +111,48 @@ public class Game extends PApplet {
         }
     }
 
+    void slicePlayerFrames() {
+        int frameW = playerImage.width / PLAYER_FRAMES_X;
+        int frameH = playerImage.height / PLAYER_FRAMES_Y;
+
+        playerFrames = new PImage[PLAYER_FRAMES_Y][PLAYER_FRAMES_X];
+        for (int dir = 0; dir < PLAYER_FRAMES_Y; dir++) {
+            for (int f = 0; f < PLAYER_FRAMES_X; f++) {
+                playerFrames[dir][f] = playerImage.get(f * frameW, dir * frameH, frameW, frameH);
+            }
+        }
+    }
+
+    void sliceIdleFrames() {
+        int frameW = playerIdle.width / IDLE_FRAMES_X;
+        int frameH = playerIdle.height / IDLE_FRAMES_Y;
+
+        idleFrames = new PImage[IDLE_FRAMES_Y][IDLE_FRAMES_X];
+        for (int dir = 0; dir < IDLE_FRAMES_Y; dir++) {
+            for (int f = 0; f < IDLE_FRAMES_X; f++) {
+                idleFrames[dir][f] = playerIdle.get(f * frameW, dir * frameH, frameW, frameH);
+            }
+        }
+    }
+
     public void settings() {
-//        size(displayWidth / 3 * 2, displayHeight / 3 * 2);
+        //        size(displayWidth / 3 * 2, displayHeight / 3 * 2);
         fullScreen();
     }
 
     public void setup() {
         tilesImage = loadImage("imgs/tiles.png");
         playerImage = loadImage("imgs/player.png");
+        playerIdle = loadImage("imgs/player_idle.png");
 
         tRows = tilesImage.height / tileSize;
         tCollumns = tilesImage.width / tileSize;
         tilesArray = new PImage[tRows * tCollumns];
         fillTiles();
+
+        slicePlayerFrames();
+        sliceIdleFrames(); // NEW
+
         initEditor();
 
         textAlign(CENTER, CENTER);
@@ -148,6 +198,15 @@ public class Game extends PApplet {
         playerDir = DIR_DOWN;
         animFrame = 0;
         lastMoveFrameCount = 0;
+
+        isMoving = false;
+        playerRenderX = playerX;
+        playerRenderY = PlayerY;
+        lastAnimMs = millis();
+
+        walkAnimFrame = 0;
+        idleAnimFrame = 0;
+
         Play();
     }
 
@@ -161,13 +220,28 @@ public class Game extends PApplet {
                     spawnCoordinates[0] = c;
                     spawnCoordinates[1] = r;
                     playState = PlayState.RUNNING;
+
+                    isMoving = false;
+                    playerRenderX = playerX;
+                    playerRenderY = PlayerY;
+                    lastAnimMs = millis();
+
+                    walkAnimFrame = 0;
+                    idleAnimFrame = 0;
+
                     return;
                 }
             }
         }
-        // If no spawn found, keep (0,0) but mark coordinates as "found" to avoid infinite search
         spawnCoordinates[0] = playerX;
         spawnCoordinates[1] = PlayerY;
+
+        isMoving = false;
+        playerRenderX = playerX;
+        playerRenderY = PlayerY;
+        lastAnimMs = millis();
+        walkAnimFrame = 0;
+        idleAnimFrame = 0;
     }
 
     void Play() {
@@ -175,6 +249,7 @@ public class Game extends PApplet {
 
         if (playState == PlayState.RUNNING) {
             handleMovement();
+            updateSmoothMovementAndAnimation(); // NEW
             checkWinLose();
         }
 
@@ -187,7 +262,6 @@ public class Game extends PApplet {
 
     void handleMovement() {
         int dx = 0, dy = 0;
-
 
         if (keyPressed) {
             if (keyCode == UP || key == 'w' || key == 'W') {
@@ -205,18 +279,55 @@ public class Game extends PApplet {
             }
         }
 
-        if (dx == 0 && dy == 0) return;
+        if (isMoving) return;
 
-        if (frameCount - lastMoveFrameCount < moveEveryNFrames) return;
+        if (dx == 0 && dy == 0) return;
 
         int nx = playerX + dx;
         int ny = PlayerY + dy;
 
+        if (nx < 0 || nx >= mapCols || ny < 0 || ny >= mapRows) return;
+
+        moveFromX = playerX;
+        moveFromY = PlayerY;
+        moveToX = nx;
+        moveToY = ny;
+        moveStartMs = millis();
+        isMoving = true;
+
         playerX = nx;
         PlayerY = ny;
+    }
 
-        lastMoveFrameCount = frameCount;
-        animFrame = (animFrame + 1) % 8;
+    void updateSmoothMovementAndAnimation() {
+        int now = millis();
+
+        if (isMoving) {
+            float t = (now - moveStartMs) / (float) moveDurationMs;
+            if (t >= 1f) {
+                t = 1f;
+                isMoving = false;
+            }
+
+            // Smoothstep easing (less robotic than linear)
+            float eased = t * t * (3f - 2f * t);
+
+            playerRenderX = lerp(moveFromX, moveToX, eased);
+            playerRenderY = lerp(moveFromY, moveToY, eased);
+
+            if (now - lastAnimMs >= walkFrameMs) {
+                walkAnimFrame = (walkAnimFrame + 1) % PLAYER_FRAMES_X;
+                lastAnimMs = now;
+            }
+        } else {
+            playerRenderX = playerX;
+            playerRenderY = PlayerY;
+
+            if (now - lastAnimMs >= idleFrameMs) {
+                idleAnimFrame = (idleAnimFrame + 1) % IDLE_FRAMES_X;
+                lastAnimMs = now;
+            }
+        }
     }
 
     void checkWinLose() {
@@ -235,10 +346,8 @@ public class Game extends PApplet {
         int diameterTiles = radius * 2 + 1;
         int gameTileSize = min(width, height) / max(1, diameterTiles);
 
-
         int originX = width / 2 - gameTileSize / 2 - radius * gameTileSize;
         int originY = height / 2 - gameTileSize / 2 - radius * gameTileSize;
-
 
         for (int dy = -radius; dy <= radius; dy++) {
             for (int dx = -radius; dx <= radius; dx++) {
@@ -260,7 +369,6 @@ public class Game extends PApplet {
                 int dist = abs(dx) + abs(dy);
                 float vis = constrain(1f - (dist / (float) radius), 0f, 1f);
 
-
                 int alpha = (int) ((1f - vis) * 255f);
                 noStroke();
                 fill(0, alpha);
@@ -268,18 +376,25 @@ public class Game extends PApplet {
             }
         }
 
-        drawPlayer(width / 2 - gameTileSize / 2, height / 2 - gameTileSize / 2, gameTileSize);
+        float offsetTilesX = playerRenderX - playerX;
+        float offsetTilesY = playerRenderY - PlayerY;
+        int px = Math.round(width / 2f - gameTileSize / 2f - offsetTilesX * gameTileSize);
+        int py = Math.round(height / 2f - gameTileSize / 2f - offsetTilesY * gameTileSize);
+
+        drawPlayer(px, py, gameTileSize);
     }
 
     void drawPlayer(int x, int y, int sizePx) {
-        int frameW = playerImage.width / 8;
-        int frameH = playerImage.height / 4;
-
-        int fx = constrain(animFrame, 0, 7);
+        int fx;
         int fy = constrain(playerDir, 0, 3);
 
-        PImage frame = playerImage.get(fx * frameW, fy * frameH, frameW, frameH);
-        image(frame, x, y, sizePx, sizePx);
+        if (isMoving) {
+            fx = constrain(walkAnimFrame, 0, PLAYER_FRAMES_X - 1);
+            image(playerFrames[fy][fx], x, y, sizePx, sizePx);
+        } else {
+            fx = constrain(idleAnimFrame, 0, IDLE_FRAMES_X - 1);
+            image(idleFrames[fy][fx], x, y, sizePx, sizePx);
+        }
     }
 
     void drawEndOverlay() {
