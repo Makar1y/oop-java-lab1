@@ -35,7 +35,8 @@ public class Game extends PApplet {
     // layer 3 = decorative top
     final int LAYERS = 3;
     int[][][] maps = new int[LAYERS][mapRows][mapCols];
-    int activeLayer = 0; // 0..2
+    int activeLayer = 0;
+    boolean editorShowOnlyActiveLayer = false;
 
     int selectedTile = 0;
     int sidebarW = 300;
@@ -58,7 +59,7 @@ public class Game extends PApplet {
 
     //
     int spawnTile = 3;
-    int GroundTile = 19;
+    int groundTile = 19;
     int ExitTile = 11;
     int viewDistance = 7; // Tiles visible from the player
     int[] spawnCoordinates = new int[] {-1,-1};
@@ -121,6 +122,7 @@ public class Game extends PApplet {
         maps = new int[LAYERS][mapRows][mapCols];
         for (int i = 0; i < LAYERS; i++) clearLayer(i);
         activeLayer = 0;
+        editorShowOnlyActiveLayer = false;
     }
 
     void fillTiles() {
@@ -396,7 +398,6 @@ public class Game extends PApplet {
         float fracX = camX - centerTileX;
         float fracY = camY - centerTileY;
 
-        int[][] l1 = layer(0);
         int[][] l2 = layer(1);
         int[][] l3 = layer(2);
 
@@ -410,10 +411,10 @@ public class Game extends PApplet {
                 float sy = originY + (dy + radius - fracY) * gameTileSize;
 
                 if (tx >= 0 && tx < mapCols && ty >= 0 && ty < mapRows) {
-                    int id1 = l1[ty][tx];
+                    int id1 = l2[ty][tx];
                     if (id1 >= 0) image(tilesArray[id1], (int) sx, (int) sy, gameTileSize, gameTileSize);
 
-                    int id2 = l2[ty][tx];
+                    int id2 = l3[ty][tx];
                     if (id2 >= 0) image(tilesArray[id2], (int) sx, (int) sy, gameTileSize, gameTileSize);
                 }
 
@@ -448,6 +449,81 @@ public class Game extends PApplet {
         }
     }
 
+    void drawMapEditor() {
+        int mapViewW = width - sidebarW;
+        int mapViewH = height;
+
+        int fitTileW = Math.max(1, mapViewW / mapCols);
+        int fitTileH = Math.max(1, mapViewH / mapRows);
+        viewTileSize = Math.min(fitTileW, fitTileH);
+
+        int mapPixelW = mapCols * viewTileSize;
+        int mapPixelH = mapRows * viewTileSize;
+
+        mapDrawX = mapViewX + (mapViewW - mapPixelW) / 2;
+        mapDrawY = mapViewY + (mapViewH - mapPixelH) / 2;
+
+        background(250);
+        noStroke();
+        fill(70, 130, 180);
+        rect(mapViewX, mapViewY, mapViewW, mapViewH);
+
+        int startLayer = editorShowOnlyActiveLayer ? activeLayer : 0;
+        int endLayer = editorShowOnlyActiveLayer ? (activeLayer + 1) : LAYERS;
+
+        for (int layerIndex = startLayer; layerIndex < endLayer; layerIndex++) {
+            int[][] m = layer(layerIndex);
+            for (int r = 0; r < mapRows; r++) {
+                for (int c = 0; c < mapCols; c++) {
+                    int id = m[r][c];
+                    if (id != emptyTile) {
+                        int sx = mapDrawX + c * viewTileSize;
+                        int sy = mapDrawY + r * viewTileSize;
+                        image(tilesArray[id], sx, sy, viewTileSize, viewTileSize);
+                    }
+                }
+            }
+        }
+
+        // Sidebar / palette
+        paletteX = width - sidebarW;
+        paletteY = 0;
+
+        noStroke();
+        fill(0, 125, 200);
+        rect(paletteX, paletteY, sidebarW, height);
+
+        fill(0);
+        textSize(18);
+        textAlign(LEFT, TOP);
+        text("Palette", paletteX + 12, 12);
+        textSize(20);
+        text(
+                "LMB paint / RMB erase\n" +
+                "1/2/3 select layer (current: " + (activeLayer + 1) + ")\n" +
+                "V toggle solo layer view (now: " + (editorShowOnlyActiveLayer ? "ON" : "OFF") + ")\n" +
+                "S save / L load\n" +
+                "Esc back",
+                paletteX + 12, 40
+        );
+
+        paletteInnerX = paletteX + 12;
+        paletteInnerY = 160;
+        paletteInnerW = sidebarW - 12*2;
+
+        drawPalette(paletteInnerX, paletteInnerY, paletteInnerW);
+        // Grid
+        stroke(255, 75);
+        for (int c = 0; c <= mapCols; c++) {
+            int x = mapDrawX + c * viewTileSize;
+            line(x, mapDrawY, x, mapDrawY + mapPixelH);
+        }
+        for (int r = 0; r <= mapRows; r++) {
+            int y = mapDrawY + r * viewTileSize;
+            line(mapDrawX, y, mapDrawX + mapPixelW, y);
+        }
+    }
+
     void drawPlayer(int x, int y, int sizePx) {
         int fx;
         int fy = constrain(playerDir, 0, 3);
@@ -477,80 +553,6 @@ public class Game extends PApplet {
         text("Press R to restart, ESC for menu", width / 2f, height / 2f + 30);
     }
 
-    void drawMapEditor() {
-        int mapViewW = width - sidebarW;
-        int mapViewH = height;
-
-        //
-        int fitTileW = Math.max(1, mapViewW / mapCols);
-        int fitTileH = Math.max(1, mapViewH / mapRows);
-        viewTileSize = Math.min(fitTileW, fitTileH);
-
-        int mapPixelW = mapCols * viewTileSize;
-        int mapPixelH = mapRows * viewTileSize;
-
-        // Center map inside the view
-        mapDrawX = mapViewX + (mapViewW - mapPixelW) / 2;
-        mapDrawY = mapViewY + (mapViewH - mapPixelH) / 2;
-
-
-        // Background
-        background(250);
-        noStroke();
-        fill(70, 130, 180);
-        rect(mapViewX, mapViewY, mapViewW, mapViewH);
-
-        for (int layerIndex = 0; layerIndex < LAYERS; layerIndex++) {
-            int[][] m = layer(layerIndex);
-            for (int r = 0; r < mapRows; r++) {
-                for (int c = 0; c < mapCols; c++) {
-                    int id = m[r][c];
-                    if (id != emptyTile) {
-                        int sx = mapDrawX + c * viewTileSize;
-                        int sy = mapDrawY + r * viewTileSize;
-                        image(tilesArray[id], sx, sy, viewTileSize, viewTileSize);
-                    }
-                }
-            }
-        }
-
-        // Sidebar / palette
-        paletteX = width - sidebarW;
-        paletteY = 0;
-
-        noStroke();
-        fill(0, 125, 200);
-        rect(paletteX, paletteY, sidebarW, height);
-
-        fill(0);
-        textSize(18);
-        textAlign(LEFT, TOP);
-        text("Palette", paletteX + 12, 12);
-        textSize(12);
-        text(
-                "LMB paint / RMB erase\n" +
-                "1/2/3 select layer (current: " + (activeLayer + 1) + ")\n" +
-                "S save / L load\n" +
-                "Esc back",
-                paletteX + 12, 40
-        );
-
-        paletteInnerX = paletteX + 12;
-        paletteInnerY = 160;
-        paletteInnerW = sidebarW - 12*2;
-
-        drawPalette(paletteInnerX, paletteInnerY, paletteInnerW);
-        // Grid
-        stroke(255, 75);
-        for (int c = 0; c <= mapCols; c++) {
-            int x = mapDrawX + c * viewTileSize;
-            line(x, mapDrawY, x, mapDrawY + mapPixelH);
-        }
-        for (int r = 0; r <= mapRows; r++) {
-            int y = mapDrawY + r * viewTileSize;
-            line(mapDrawX, y, mapDrawX + mapPixelW, y);
-        }
-    }
 
     void drawPalette(int x, int y, int w) {
         int cols = Math.max(1, w / (preview + pad));
@@ -670,6 +672,9 @@ public class Game extends PApplet {
             if (key == '1') activeLayer = 0;
             else if (key == '2') activeLayer = 1;
             else if (key == '3') activeLayer = 2;
+            else if (key == 'v' || key == 'V') {
+                editorShowOnlyActiveLayer = !editorShowOnlyActiveLayer;
+            }
             else if (key == 's' || key == 'S') {
                 String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
                 saveMapCSV(fileName);
