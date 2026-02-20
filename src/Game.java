@@ -412,10 +412,10 @@ public class Game extends PApplet {
 
                 if (tx >= 0 && tx < mapCols && ty >= 0 && ty < mapRows) {
                     int id1 = l2[ty][tx];
-                    if (id1 >= 0) image(tilesArray[id1], (int) sx, (int) sy, gameTileSize, gameTileSize);
+                    if (id1 >= 0) image(tilesArray[id1],  sx, sy, gameTileSize, gameTileSize);
 
                     int id2 = l3[ty][tx];
-                    if (id2 >= 0) image(tilesArray[id2], (int) sx, (int) sy, gameTileSize, gameTileSize);
+                    if (id2 >= 0) image(tilesArray[id2], sx, sy, gameTileSize, gameTileSize);
                 }
 
                 int dist = abs(dx) + abs(dy);
@@ -424,7 +424,7 @@ public class Game extends PApplet {
                 float alpha = (1f - vis) * 255f;
                 noStroke();
                 fill(0, alpha);
-                rect((int) sx, (int) sy, gameTileSize, gameTileSize);
+                rect( (int)sx, (int)sy, gameTileSize, gameTileSize);
             }
         }
 
