@@ -176,6 +176,7 @@ public class Game extends PApplet {
         sliceIdleFrames();
 
         initEditor();
+        loadMapCSV("maps/empty.csv");
 
         textAlign(CENTER, CENTER);
         rectMode(CORNER);
@@ -411,20 +412,22 @@ public class Game extends PApplet {
                 float sy = originY + (dy + radius - fracY) * gameTileSize;
 
                 if (tx >= 0 && tx < mapCols && ty >= 0 && ty < mapRows) {
-                    int id1 = l2[ty][tx];
-                    if (id1 >= 0) image(tilesArray[id1],  sx, sy, gameTileSize, gameTileSize);
-
-                    int id2 = l3[ty][tx];
-                    if (id2 >= 0) image(tilesArray[id2], sx, sy, gameTileSize, gameTileSize);
+                    int id2 = l2[ty][tx];
+                    if (id2 >= 0) image(tilesArray[id2], (int) sx, (int) sy, gameTileSize, gameTileSize);
                 }
 
-                int dist = abs(dx) + abs(dy);
-                float vis = constrain(1f - (dist / (float) radius), 0f, 1f);
+                // Smooth dark around player/camera:
+                float ddx = dx - fracX;
+                float ddy = dy - fracY;
+                float dist = sqrt(ddx * ddx + ddy * ddy);
 
-                float alpha = (1f - vis) * 255f;
+                float t = constrain(dist / max(0.0001f, radius), 0f, 1f);
+
+                float alpha = 255f * (t * t);
+
                 noStroke();
                 fill(0, alpha);
-                rect( (int)sx, (int)sy, gameTileSize, gameTileSize);
+                rect((int) sx, (int) sy, gameTileSize, gameTileSize);
             }
         }
 
@@ -676,11 +679,11 @@ public class Game extends PApplet {
                 editorShowOnlyActiveLayer = !editorShowOnlyActiveLayer;
             }
             else if (key == 's' || key == 'S') {
-                String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
+                String fileName = "maps/" + JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
                 saveMapCSV(fileName);
                 JOptionPane.showMessageDialog(null, "Saved successfully");
             } else if (key == 'l' || key == 'L') {
-                String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
+                String fileName = "maps/" + JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
                 loadMapCSV(fileName);
             }
         }
@@ -716,29 +719,6 @@ public class Game extends PApplet {
 
         for (int li = 0; li < LAYERS; li++) clearLayer(li);
 
-        // Detect new format
-        boolean hasHeaders = false;
-        for (String line : lines) {
-            if (line != null && line.startsWith("#layer=")) {
-                hasHeaders = true;
-                break;
-            }
-        }
-
-        if (!hasHeaders) {
-            int[][] m = layer(0);
-            int rows = Math.min(lines.length, mapRows);
-            for (int r = 0; r < rows; r++) {
-                String[] parts = split(lines[r], ',');
-                int cols = Math.min(parts.length, mapCols);
-                for (int c = 0; c < cols; c++) {
-                    m[r][c] = parseInt(parts[c]);
-                }
-            }
-            JOptionPane.showMessageDialog(null, "Loaded successfully (layer 1 only)");
-            return;
-        }
-
         int currentLayer = -1;
         int rowInLayer = 0;
 
@@ -766,7 +746,7 @@ public class Game extends PApplet {
             rowInLayer++;
         }
 
-        JOptionPane.showMessageDialog(null, "Loaded successfully");
+//        JOptionPane.showMessageDialog(null, "Loaded successfully");
     }
 
     public static void main(String[] args) {
