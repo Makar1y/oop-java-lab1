@@ -154,7 +154,7 @@ public class Game extends PApplet {
         fillTiles();
 
         slicePlayerFrames();
-        sliceIdleFrames(); // NEW
+        sliceIdleFrames();
 
         initEditor();
 
@@ -328,7 +328,6 @@ public class Game extends PApplet {
                 isMoving = false;
             }
 
-            // Smoothstep easing (less robotic than linear)
             float eased = t * t * (3f - 2f * t);
 
             playerRenderX = lerp(moveFromX, moveToX, eased);
@@ -392,7 +391,7 @@ public class Game extends PApplet {
                 }
 
                 if (id >= 0) {
-                    image(tilesArray[id], sx, sy, gameTileSize, gameTileSize);
+                    image(tilesArray[id], (int)sx, (int)sy, gameTileSize, gameTileSize);
                 }
 
                 int dist = abs(dx) + abs(dy);
@@ -401,7 +400,7 @@ public class Game extends PApplet {
                 float alpha = (1f - vis) * 255f;
                 noStroke();
                 fill(0, alpha);
-                rect(sx, sy, gameTileSize, gameTileSize);
+                rect((int)sx, (int)sy, gameTileSize, gameTileSize);
             }
         }
 
