@@ -49,11 +49,29 @@ public class Game extends PApplet {
 
     //
     int spawnTile = 3;
-    int GroundTile = 17;
-    int ExitTile = 10;
-    int viewDistance = 9; // Tiles visible from the player
+    int GroundTile = 19;
+    int ExitTile = 11;
+    int viewDistance = 7; // Tiles visible from the player
     int[] spawnCoordinates = new int[] {-1,-1};
     int playerX, PlayerY;
+
+    enum PlayState {
+        RUNNING,
+        LOST,
+        WON
+    }
+    PlayState playState = PlayState.RUNNING;
+    final int DIR_DOWN = 0;
+    final int DIR_UP = 1;     // "forward"
+    final int DIR_LEFT = 2;
+    final int DIR_RIGHT = 3;
+
+    int animFrame = 0;
+    int playerDir = DIR_DOWN;
+    int lastMoveFrameCount = 0;
+    final int moveEveryNFrames = 7;
+
+
 
     void initEditor() {
         map = new int[mapRows][mapCols];
@@ -122,6 +140,17 @@ public class Game extends PApplet {
         drawButton(editorX, editorY, editorW, editorH, "Map editor");
     }
 
+    void resetPlay() {
+        spawnCoordinates[0] = -1;
+        spawnCoordinates[1] = -1;
+        playerX = 0;
+        PlayerY = 0;
+        playerDir = DIR_DOWN;
+        animFrame = 0;
+        lastMoveFrameCount = 0;
+        Play();
+    }
+
     void voidStartPlay() {
         for (int r = 0; r < mapRows; r++) {
             for (int c = 0; c < mapCols; c++) {
@@ -131,36 +160,143 @@ public class Game extends PApplet {
                     PlayerY = r;
                     spawnCoordinates[0] = c;
                     spawnCoordinates[1] = r;
+                    playState = PlayState.RUNNING;
+                    return;
                 }
             }
         }
-    };
+        // If no spawn found, keep (0,0) but mark coordinates as "found" to avoid infinite search
+        spawnCoordinates[0] = playerX;
+        spawnCoordinates[1] = PlayerY;
+    }
 
     void Play() {
         if (spawnCoordinates[0] == -1) voidStartPlay();
-        drawMap(playerX, PlayerY);
 
+        if (playState == PlayState.RUNNING) {
+            handleMovement();
+            checkWinLose();
+        }
+
+        drawPlayWorld();
+
+        if (playState != PlayState.RUNNING) {
+            drawEndOverlay();
+        }
     }
 
-    void drawMap(int x, int y) {
-        background(0);
-        int gameTileSize = displayHeight/ (viewDistance + 2);
+    void handleMovement() {
+        int dx = 0, dy = 0;
 
-        for (int r = x - viewDistance/2; r < x + viewDistance/2; r++) {
-            for (int c = y - viewDistance/2; c < y + viewDistance/2; c++) {
-                if (r < 0 || r >= mapRows || c < 0 || c >= mapCols) {
-                    noStroke();
-                    fill(255, 1 - (abs(r - playerX) + abs(c - PlayerY)) / (float)gameTileSize);
-                    rect(x + c * tileSize, y + r * tileSize, tileSize, tileSize);
-                };
-                int id = map[r][c];
-                if (id >= 0) {
-                    image(tilesArray[id], x + c * tileSize, y + r * tileSize);
-                }
-                }
+
+        if (keyPressed) {
+            if (keyCode == UP || key == 'w' || key == 'W') {
+                dy = -1;
+                playerDir = DIR_UP;
+            } else if (keyCode == DOWN || key == 's' || key == 'S') {
+                dy = 1;
+                playerDir = DIR_DOWN;
+            } else if (keyCode == LEFT || key == 'a' || key == 'A') {
+                dx = -1;
+                playerDir = DIR_LEFT;
+            } else if (keyCode == RIGHT || key == 'd' || key == 'D') {
+                dx = 1;
+                playerDir = DIR_RIGHT;
             }
         }
-    };
+
+        if (dx == 0 && dy == 0) return;
+
+        if (frameCount - lastMoveFrameCount < moveEveryNFrames) return;
+
+        int nx = playerX + dx;
+        int ny = PlayerY + dy;
+
+        playerX = nx;
+        PlayerY = ny;
+
+        lastMoveFrameCount = frameCount;
+        animFrame = (animFrame + 1) % 8;
+    }
+
+    void checkWinLose() {
+        int id = map[PlayerY][playerX];
+        if (id == emptyTile) {
+            playState = PlayState.LOST;
+        } else if (id == ExitTile) {
+            playState = PlayState.WON;
+        }
+    }
+
+    void drawPlayWorld() {
+        background(0);
+
+        int radius = viewDistance;
+        int diameterTiles = radius * 2 + 1;
+        int gameTileSize = min(width, height) / max(1, diameterTiles);
+
+
+        int originX = width / 2 - gameTileSize / 2 - radius * gameTileSize;
+        int originY = height / 2 - gameTileSize / 2 - radius * gameTileSize;
+
+
+        for (int dy = -radius; dy <= radius; dy++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                int tx = playerX + dx;
+                int ty = PlayerY + dy;
+
+                int sx = originX + (dx + radius) * gameTileSize;
+                int sy = originY + (dy + radius) * gameTileSize;
+
+                int id = emptyTile;
+                if (tx >= 0 && tx < mapCols && ty >= 0 && ty < mapRows) {
+                    id = map[ty][tx];
+                }
+
+                if (id >= 0) {
+                    image(tilesArray[id], sx, sy, gameTileSize, gameTileSize);
+                }
+
+                int dist = abs(dx) + abs(dy);
+                float vis = constrain(1f - (dist / (float) radius), 0f, 1f);
+
+
+                int alpha = (int) ((1f - vis) * 255f);
+                noStroke();
+                fill(0, alpha);
+                rect(sx, sy, gameTileSize, gameTileSize);
+            }
+        }
+
+        drawPlayer(width / 2 - gameTileSize / 2, height / 2 - gameTileSize / 2, gameTileSize);
+    }
+
+    void drawPlayer(int x, int y, int sizePx) {
+        int frameW = playerImage.width / 8;
+        int frameH = playerImage.height / 4;
+
+        int fx = constrain(animFrame, 0, 7);
+        int fy = constrain(playerDir, 0, 3);
+
+        PImage frame = playerImage.get(fx * frameW, fy * frameH, frameW, frameH);
+        image(frame, x, y, sizePx, sizePx);
+    }
+
+    void drawEndOverlay() {
+        fill(0, 170);
+        noStroke();
+        rect(0, 0, width, height);
+
+        fill(255);
+        textAlign(CENTER, CENTER);
+        textSize(52);
+
+        if (playState == PlayState.WON) text("YOU WIN", width / 2f, height / 2f - 30);
+        if (playState == PlayState.LOST) text("YOU LOSE", width / 2f, height / 2f - 30);
+
+        textSize(18);
+        text("Press R to restart, ESC for menu", width / 2f, height / 2f + 30);
+    }
 
     void drawMapEditor() {
         int mapViewW = width - sidebarW;
@@ -340,7 +476,11 @@ public class Game extends PApplet {
             } else {
                 System.exit(0);
             }
-        } else if (screen == Screen.MAP_EDITOR) {
+        } else if (screen == Screen.PLAY) {
+            if (key == 'r' || key == 'R') {
+                resetPlay();
+            }
+        }else if (screen == Screen.MAP_EDITOR) {
             if (key == 's' || key == 'S') {
                 String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
                 saveMapCSV(fileName);
