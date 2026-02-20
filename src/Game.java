@@ -21,6 +21,7 @@ public class Game extends PApplet {
     int tCollumns;
     PImage[] tilesArray;
     PImage tilesImage;
+    PImage playerImage;
 
     // Map editor
     public int mapCols = 50;
@@ -46,6 +47,14 @@ public class Game extends PApplet {
     int mapDrawX = 0;
     int mapDrawY = 0;
 
+    //
+    int spawnTile = 3;
+    int GroundTile = 17;
+    int ExitTile = 10;
+    int viewDistance = 9; // Tiles visible from the player
+    int[] spawnCoordinates = new int[] {-1,-1};
+    int playerX, PlayerY;
+
     void initEditor() {
         map = new int[mapRows][mapCols];
         for (int r = 0; r < mapRows; r++) {
@@ -69,7 +78,9 @@ public class Game extends PApplet {
     }
 
     public void setup() {
-        tilesImage = loadImage("tiles.png");
+        tilesImage = loadImage("imgs/tiles.png");
+        playerImage = loadImage("imgs/player.png");
+
         tRows = tilesImage.height / tileSize;
         tCollumns = tilesImage.width / tileSize;
         tilesArray = new PImage[tRows * tCollumns];
@@ -83,7 +94,7 @@ public class Game extends PApplet {
     public void draw() {
         switch (screen) {
             case MAIN_MENU -> drawMainMenu();
-            case PLAY -> drawPlay();
+            case PLAY -> Play();
             case MAP_EDITOR -> drawMapEditor();
         }
     }
@@ -111,8 +122,45 @@ public class Game extends PApplet {
         drawButton(editorX, editorY, editorW, editorH, "Map editor");
     }
 
-    void drawPlay() {
+    void voidStartPlay() {
+        for (int r = 0; r < mapRows; r++) {
+            for (int c = 0; c < mapCols; c++) {
+                int id = map[r][c];
+                if (id == spawnTile) {
+                    playerX = c;
+                    PlayerY = r;
+                    spawnCoordinates[0] = c;
+                    spawnCoordinates[1] = r;
+                }
+            }
+        }
+    };
+
+    void Play() {
+        if (spawnCoordinates[0] == -1) voidStartPlay();
+        drawMap(playerX, PlayerY);
+
     }
+
+    void drawMap(int x, int y) {
+        background(0);
+        int gameTileSize = displayHeight/ (viewDistance + 2);
+
+        for (int r = x - viewDistance/2; r < x + viewDistance/2; r++) {
+            for (int c = y - viewDistance/2; c < y + viewDistance/2; c++) {
+                if (r < 0 || r >= mapRows || c < 0 || c >= mapCols) {
+                    noStroke();
+                    fill(255, 1 - (abs(r - playerX) + abs(c - PlayerY)) / (float)gameTileSize);
+                    rect(x + c * tileSize, y + r * tileSize, tileSize, tileSize);
+                };
+                int id = map[r][c];
+                if (id >= 0) {
+                    image(tilesArray[id], x + c * tileSize, y + r * tileSize);
+                }
+                }
+            }
+        }
+    };
 
     void drawMapEditor() {
         int mapViewW = width - sidebarW;
@@ -203,7 +251,7 @@ public class Game extends PApplet {
         }
     }
 
-    private void paintAtMouse(boolean erase) {
+    void paintAtMouse(boolean erase) {
         int mapPixelW = mapCols * viewTileSize;
         int mapPixelH = mapRows * viewTileSize;
 
@@ -222,7 +270,7 @@ public class Game extends PApplet {
         map[row][col] = erase ? emptyTile : selectedTile;
     }
 
-    private void pickTileAtMouse() {
+    void pickTileAtMouse() {
         int x = paletteInnerX;
         int y = paletteInnerY;
         int w = paletteInnerW;
@@ -241,7 +289,7 @@ public class Game extends PApplet {
         }
     }
 
-    private void drawButton(float x, float y, float w, float h, String label) {
+    void drawButton(float x, float y, float w, float h, String label) {
         boolean hover = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
 
         stroke(30);
@@ -280,7 +328,7 @@ public class Game extends PApplet {
         }
     }
 
-    private boolean isInside(float px, float py, float x, float y, float w, float h) {
+    boolean isInside(float px, float py, float x, float y, float w, float h) {
         return px >= x && px <= x + w && py >= y && py <= y + h;
     }
 
@@ -300,7 +348,6 @@ public class Game extends PApplet {
             } else if (key == 'l' || key == 'L') {
                 String fileName = JOptionPane.showInputDialog("Enter map(file) name(without extension):") + ".csv";
                 loadMapCSV(fileName);
-                JOptionPane.showMessageDialog(null, "Loaded successfully");
             }
         }
     }
@@ -318,9 +365,12 @@ public class Game extends PApplet {
         saveStrings(filename, lines);
     }
 
-    private void loadMapCSV(String filename) {
+    void loadMapCSV(String filename) {
         String[] lines = loadStrings(filename);
-        if (lines == null) return;
+        if (lines == null) {
+            JOptionPane.showMessageDialog(null, "Not found");
+            return;
+        }
 
         int rows = Math.min(lines.length, mapRows);
         for (int r = 0; r < rows; r++) {
@@ -330,6 +380,7 @@ public class Game extends PApplet {
                 map[r][c] = parseInt(parts[c]);
             }
         }
+        JOptionPane.showMessageDialog(null, "Loaded successfully");
     }
 
     public static void main(String[] args) {
