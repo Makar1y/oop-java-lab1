@@ -94,6 +94,9 @@ public class Game extends PApplet {
     final int walkFrameMs = 90; // ms
     final int idleFrameMs = 140; // ms
 
+    float camRenderX, camRenderY;
+    final float camFollow = 0.35f;
+
     void initEditor() {
         map = new int[mapRows][mapCols];
         for (int r = 0; r < mapRows; r++) {
@@ -202,8 +205,11 @@ public class Game extends PApplet {
         isMoving = false;
         playerRenderX = playerX;
         playerRenderY = PlayerY;
-        lastAnimMs = millis();
 
+        camRenderX = playerRenderX;
+        camRenderY = playerRenderY;
+
+        lastAnimMs = millis();
         walkAnimFrame = 0;
         idleAnimFrame = 0;
 
@@ -224,21 +230,28 @@ public class Game extends PApplet {
                     isMoving = false;
                     playerRenderX = playerX;
                     playerRenderY = PlayerY;
-                    lastAnimMs = millis();
 
+                    camRenderX = playerRenderX;
+                    camRenderY = playerRenderY;
+
+                    lastAnimMs = millis();
                     walkAnimFrame = 0;
                     idleAnimFrame = 0;
-
                     return;
                 }
             }
         }
+
         spawnCoordinates[0] = playerX;
         spawnCoordinates[1] = PlayerY;
 
         isMoving = false;
         playerRenderX = playerX;
         playerRenderY = PlayerY;
+
+        camRenderX = playerRenderX;
+        camRenderY = playerRenderY;
+
         lastAnimMs = millis();
         walkAnimFrame = 0;
         idleAnimFrame = 0;
@@ -249,7 +262,8 @@ public class Game extends PApplet {
 
         if (playState == PlayState.RUNNING) {
             handleMovement();
-            updateSmoothMovementAndAnimation(); // NEW
+            updateSmoothMovementAndAnimation();
+            updateCamera();
             checkWinLose();
         }
 
@@ -258,6 +272,11 @@ public class Game extends PApplet {
         if (playState != PlayState.RUNNING) {
             drawEndOverlay();
         }
+    }
+
+    void updateCamera() {
+        camRenderX = lerp(camRenderX, playerRenderX, camFollow);
+        camRenderY = lerp(camRenderY, playerRenderY, camFollow);
     }
 
     void handleMovement() {
@@ -346,16 +365,26 @@ public class Game extends PApplet {
         int diameterTiles = radius * 2 + 1;
         int gameTileSize = min(width, height) / max(1, diameterTiles);
 
-        int originX = width / 2 - gameTileSize / 2 - radius * gameTileSize;
-        int originY = height / 2 - gameTileSize / 2 - radius * gameTileSize;
+        float originX = width / 2f - gameTileSize / 2f - radius * gameTileSize;
+        float originY = height / 2f - gameTileSize / 2f - radius * gameTileSize;
 
-        for (int dy = -radius; dy <= radius; dy++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                int tx = playerX + dx;
-                int ty = PlayerY + dy;
+        float camX = camRenderX;
+        float camY = camRenderY;
 
-                int sx = originX + (dx + radius) * gameTileSize;
-                int sy = originY + (dy + radius) * gameTileSize;
+        int centerTileX = (int) floor(camX);
+        int centerTileY = (int) floor(camY);
+
+        float fracX = camX - centerTileX;
+        float fracY = camY - centerTileY;
+
+        for (int dy = -radius - 1; dy <= radius + 1; dy++) {
+            for (int dx = -radius - 1; dx <= radius + 1; dx++) {
+
+                int tx = centerTileX + dx;
+                int ty = centerTileY + dy;
+
+                float sx = originX + (dx + radius - fracX) * gameTileSize;
+                float sy = originY + (dy + radius - fracY) * gameTileSize;
 
                 int id = emptyTile;
                 if (tx >= 0 && tx < mapCols && ty >= 0 && ty < mapRows) {
@@ -369,19 +398,14 @@ public class Game extends PApplet {
                 int dist = abs(dx) + abs(dy);
                 float vis = constrain(1f - (dist / (float) radius), 0f, 1f);
 
-                int alpha = (int) ((1f - vis) * 255f);
+                float alpha = (1f - vis) * 255f;
                 noStroke();
                 fill(0, alpha);
                 rect(sx, sy, gameTileSize, gameTileSize);
             }
         }
 
-        float offsetTilesX = playerRenderX - playerX;
-        float offsetTilesY = playerRenderY - PlayerY;
-        int px = Math.round(width / 2f - gameTileSize / 2f - offsetTilesX * gameTileSize);
-        int py = Math.round(height / 2f - gameTileSize / 2f - offsetTilesY * gameTileSize);
-
-        drawPlayer(px, py, gameTileSize);
+        drawPlayer(width / 2 - gameTileSize / 2, height / 2 - gameTileSize / 2, gameTileSize);
     }
 
     void drawPlayer(int x, int y, int sizePx) {
