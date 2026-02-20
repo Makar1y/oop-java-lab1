@@ -78,7 +78,6 @@ public class Game extends PApplet {
     int animFrame = 0;
     int playerDir = DIR_DOWN;
     int lastMoveFrameCount = 0;
-    final int moveEveryNFrames = 7;
 
     PImage[][] playerFrames;
     final int PLAYER_FRAMES_X = 8;
@@ -391,8 +390,8 @@ public class Game extends PApplet {
         float camX = camRenderX;
         float camY = camRenderY;
 
-        int centerTileX = (int) floor(camX);
-        int centerTileY = (int) floor(camY);
+        int centerTileX = floor(camX);
+        int centerTileY = floor(camY);
 
         float fracX = camX - centerTileX;
         float fracY = camY - centerTileY;
