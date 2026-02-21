@@ -321,7 +321,6 @@ public class Game extends PApplet {
         }
 
         if (isMoving) return;
-
         if (dx == 0 && dy == 0) return;
 
         int nx = playerX + dx;
@@ -329,15 +328,26 @@ public class Game extends PApplet {
 
         if (nx < 0 || nx >= mapCols || ny < 0 || ny >= mapRows) return;
 
+        int targetId = layer(0)[ny][nx];
+        boolean walkable =
+                targetId == emptyTile ||
+                targetId == groundTile ||
+                targetId == ExitTile ||
+                targetId == spawnTile;
+
+        if (!walkable) return;
+
         moveFromX = playerX;
         moveFromY = PlayerY;
+
         moveToX = nx;
         moveToY = ny;
+
         moveStartMs = millis();
         isMoving = true;
 
-        playerX = nx;
-        PlayerY = ny;
+        playerX = moveToX;
+        PlayerY = moveToY;
     }
 
     void updateSmoothMovementAndAnimation() {
