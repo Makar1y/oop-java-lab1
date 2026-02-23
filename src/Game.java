@@ -176,7 +176,7 @@ public class Game extends PApplet {
         sliceIdleFrames();
 
         initEditor();
-        loadMapCSV("maps/empty.csv");
+        loadMapCSV("maps/starter_map.csv");
 
         textAlign(CENTER, CENTER);
         rectMode(CORNER);
