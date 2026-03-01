@@ -1,8 +1,6 @@
 import processing.core.PApplet;
 import processing.core.PImage;
 
-import javax.swing.*;
-
 public class Game extends PApplet {
 
     enum Screen {
