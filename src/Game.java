@@ -360,7 +360,7 @@ public class Game extends PApplet {
                 isMoving = false;
             }
 
-            float eased = t * t * (3f - 2f * t);
+            float eased = t; // t * t * (3f - 2f * t);
 
             playerRenderX = lerp(moveFromX, moveToX, eased);
             playerRenderY = lerp(moveFromY, moveToY, eased);
